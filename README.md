@@ -4,6 +4,20 @@ A Swift PIO assembler and result-builder DSL for RP2040 and RP2350. Import
 `RP2xxxPIO` on a host or in Embedded Swift. The public product is host-safe by
 default; the optional `SDKInterop` trait adds CPicoSDK adapters.
 
+## Run the example
+
+The example is a normal, non-Embedded Swift command-line executable:
+
+```sh
+swift run PIOExample
+swift run PIOExample 12
+swift run PIOExample 32  # Demonstrates an invalid runtime operand.
+```
+
+It prints compiled instruction words, label offsets, configuration data, and
+runtime assembly results. No board, SDK setup, snapshot toolchain, or shell
+build script is needed. Its source is in `Examples/Basic/PIOExample.swift`.
+
 ```swift
 import RP2xxxPIO
 
@@ -161,8 +175,8 @@ origin plus program length must fit the 32-word instruction memory.
 ## CPicoSDK interop
 
 Enable `SDKInterop` on this dependency and select board traits on the
-application's direct CPicoSDK dependency. The firmware example demonstrates this
-for `pico` and `pico2`; the library itself does not choose a board.
+application's direct CPicoSDK dependency. This is optional and separate from
+the host example; the library itself does not choose a board.
 
 ```swift
 .package(path: "../swift-rp2xxx-pio", traits: ["SDKInterop"])
@@ -208,8 +222,8 @@ claiming a state machine, GPIO setup, and enabling hardware are never automatic.
 
 This development checkout requires Swift 6.3+, a sibling `swift-constexpr`
 checkout containing `ConstExprEvaluation`, and CPicoSDK's remote `main` branch
-(the resolved revision is checked in). The firmware example uses CPicoSDK's
-`main-snapshot-2026-04-27` toolchain. No changes are required in CPicoSDK.
+(the resolved revision is checked in). The host example uses ordinary Swift;
+it does not enable `SDKInterop` or compile CPicoSDK. No changes are required in CPicoSDK.
 
 `RP2xxxPIOCore` is plain Swift with `ConstExpr` annotations. Those annotations
 generate registrations in the host copy and become no-ops in Embedded mode.
@@ -230,8 +244,7 @@ swift package --allow-writing-to-package-directory generate-constexpr-registry \
 ```sh
 bash Scripts/prepare-pioasm.sh
 swift test -Xswiftc -warnings-as-errors
-bash Examples/Firmware/build.sh pico2
-bash Examples/Firmware/build.sh pico
+swift run PIOExample
 ```
 
 The reference build is pinned to pico-sdk revision
@@ -254,12 +267,16 @@ used for its RP2040 descriptor compatibility overload.
 
 ### Optimized setup comparison
 
-After building each firmware target, compile the library and CPicoSDK's actual
-pioasm-generated Swift with the same release/Embedded compiler flags:
+This optional developer probe is separate from the host example. It requires
+an already-built CPicoSDK consumer package that imports this library with
+`SDKInterop`. It compiles the library and CPicoSDK's actual pioasm-generated
+Swift with that consumer's release/Embedded compiler flags:
 
 ```sh
-python3 Scripts/Optimization/compare.py --require-specialized-setup
-python3 Scripts/Optimization/compare.py --triple armv7em-none-none-eabi --require-specialized-setup
+python3 Scripts/Optimization/compare.py \
+  --firmware-package /path/to/consumer --module ConsumerModule \
+  --require-specialized-setup
+# Add --triple armv7em-none-none-eabi for an RP2350 consumer build.
 ```
 
 The script emits LLVM IR, ARM assembly, an object file, and a JSON report in
@@ -290,7 +307,5 @@ the pinned clock-divider implementation can emit an oversized fractional value.
 Tests compare instruction words and fractions after the same narrowing used by
 the C SDK; this library stores valid `UInt16`/`UInt8` values directly.
 
-Firmware builds produce ELF/UF2 files and exercise constant macros, dynamic
-assembly, typed errors, and SDK adapters. The build script never flashes or
-connects to a board. Its preparation step may download the SDK/toolchain bundle;
-`PICO_SDK_BUNDLE_PATH` can point to an existing bundle.
+Embedded firmware preparation, linking, and flashing belong to the consuming
+CPicoSDK application, not this package's example.

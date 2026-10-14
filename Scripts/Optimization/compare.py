@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile actual macros and CPicoSDK-generated Swift using firmware build flags.
 
-Requires an existing release build of Examples/Firmware for the selected triple.
+Requires an existing release build of a separate CPicoSDK consumer package.
 Creates only diagnostic build outputs; never links, loads, or flashes firmware.
 """
 import argparse
@@ -12,14 +12,17 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
+parser.add_argument("--firmware-package", type=pathlib.Path, required=True,
+                    help="A separate CPicoSDK consumer package with an existing release build")
+parser.add_argument("--module", required=True, help="The consumer's Swift module that imports RP2xxxPIO with SDKInterop")
 parser.add_argument("--triple", default="armv6m-none-none-eabi")
 parser.add_argument("--macro-plugin", type=pathlib.Path, help="Override the PIO host plugin while iterating on code generation")
 parser.add_argument("--require-local-equivalence", action="store_true", help="Fail unless constant local programs match the reference LLVM bodies")
 parser.add_argument("--require-specialized-setup", action="store_true", help="Check setup equivalence, reporting but excluding releases of constant program storage")
 args = parser.parse_args()
-firmware = ROOT / "Examples/Firmware"
+firmware = args.firmware_package.resolve()
 description = json.loads((firmware / ".build" / args.triple / "release/description.json").read_text())
-command = next(value for value in description["swiftCommands"].values() if value["moduleName"] == "PIOFirmware")
+command = next(value for value in description["swiftCommands"].values() if value["moduleName"] == args.module)
 output = ROOT / ".build/optimization-comparison" / args.triple
 output.mkdir(parents=True, exist_ok=True)
 cpico = firmware / ".build/checkouts/CPicoSDK/Sources/PIOASM/pioasm-swift"
