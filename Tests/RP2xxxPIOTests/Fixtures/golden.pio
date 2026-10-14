@@ -1,0 +1,48 @@
+; Reference: pico-sdk 079c6f39023649b154152db30f1d781e884879bc
+.program basic
+public loop:
+set x, 31
+wait 1 pin 2
+in pins, 32
+out x, 8
+push
+pull
+mov y, !x
+irq wait 3 rel
+nop
+jmp x--, loop
+
+.program metadata
+.pio_version 1
+.origin 4
+.side_set 2 opt pindirs
+.in 16 left auto 12
+.out 20 left auto 24
+.set 3
+.fifo rx
+.mov_status irq next set 6
+.clock_div 12.5
+.define public limit 123
+nop
+.wrap_target
+public loop:
+wait 1 gpio 47 side 3 [2]
+push
+.wrap
+jmp loop
+
+.program indexed
+.pio_version 1
+.fifo putget
+mov rxfifo[y], isr
+mov rxfifo[7], isr
+mov osr, rxfifo[y]
+mov osr, rxfifo[7]
+mov pindirs, ::x
+wait 0 jmppin + 3
+irq next clear 7
+
+.program raw
+.side_set 0 opt
+.word 65535
+nop side 0 [15]

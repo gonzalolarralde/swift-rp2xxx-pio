@@ -1,0 +1,5 @@
+.build/
+.swiftpm/
+.DS_Store
+__pycache__/
+Examples/Firmware/toolset.json

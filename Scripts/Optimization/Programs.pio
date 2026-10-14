@@ -1,0 +1,16 @@
+.program opt_default
+nop
+jmp 0
+
+.program opt_configured
+.side_set 2 opt pindirs
+.in 32 left auto 12
+.set 3
+.mov_status rxfifo < 9
+.clock_div 12
+nop
+.wrap_target
+nop side 3 [2]
+pull
+.wrap
+jmp 1

@@ -1,0 +1,212 @@
+{
+  "pioASMVersion": "2.2.1-reference",
+  "publicSymbols": {},
+  "programs": [
+    {
+      "name": "basic",
+      "pioVersion": 0,
+      "wrapTarget": 0,
+      "wrap": 9,
+      "origin": -1,
+      "usedGPIORanges": 0,
+      "publicSymbols": {},
+      "publicLabels": {
+        "loop": 0
+      },
+      "in": null,
+      "out": null,
+      "setCount": null,
+      "sideset": null,
+      "movStatus": null,
+      "fifoConfig": null,
+      "clockDiv": null,
+      "instructions": [
+        {
+          "hex": "E03F",
+          "instruction": "set    x, 31"
+        },
+        {
+          "hex": "20A2",
+          "instruction": "wait   1 pin, 2"
+        },
+        {
+          "hex": "4000",
+          "instruction": "in     pins, 32"
+        },
+        {
+          "hex": "6028",
+          "instruction": "out    x, 8"
+        },
+        {
+          "hex": "8020",
+          "instruction": "push   block"
+        },
+        {
+          "hex": "80A0",
+          "instruction": "pull   block"
+        },
+        {
+          "hex": "A049",
+          "instruction": "mov    y, ~x"
+        },
+        {
+          "hex": "C033",
+          "instruction": "irq    wait 3 rel"
+        },
+        {
+          "hex": "A042",
+          "instruction": "nop"
+        },
+        {
+          "hex": "0040",
+          "instruction": "jmp    x--, 0"
+        }
+      ],
+      "codeBlocks": [],
+      "langOpts": []
+    },
+    {
+      "name": "metadata",
+      "pioVersion": 1,
+      "wrapTarget": 1,
+      "wrap": 2,
+      "origin": 4,
+      "usedGPIORanges": 4,
+      "publicSymbols": {
+        "limit": 123
+      },
+      "publicLabels": {
+        "loop": 1
+      },
+      "in": {
+        "pinCount": 16,
+        "right": false,
+        "autopush": true,
+        "threshold": 12
+      },
+      "out": {
+        "pinCount": 20,
+        "right": false,
+        "autopull": true,
+        "threshold": 24
+      },
+      "setCount": 3,
+      "sideset": {
+        "size": 3,
+        "optional": true,
+        "pindirs": true
+      },
+      "movStatus": {
+        "type": "STATUS_IRQ_SET",
+        "n": 22
+      },
+      "fifoConfig": "PIO_FIFO_JOIN_RX",
+      "clockDiv": {
+        "int": 12,
+        "frac": 3200
+      },
+      "instructions": [
+        {
+          "hex": "A042",
+          "instruction": "nop"
+        },
+        {
+          "hex": "13E8F",
+          "instruction": "wait   1 gpio, 47      side 3 [2]"
+        },
+        {
+          "hex": "8020",
+          "instruction": "push   block"
+        },
+        {
+          "hex": "0001",
+          "instruction": "jmp    1"
+        }
+      ],
+      "codeBlocks": [],
+      "langOpts": []
+    },
+    {
+      "name": "indexed",
+      "pioVersion": 1,
+      "wrapTarget": 0,
+      "wrap": 6,
+      "origin": -1,
+      "usedGPIORanges": 0,
+      "publicSymbols": {},
+      "publicLabels": {},
+      "in": null,
+      "out": null,
+      "setCount": null,
+      "sideset": null,
+      "movStatus": null,
+      "fifoConfig": "PIO_FIFO_JOIN_PUTGET",
+      "clockDiv": null,
+      "instructions": [
+        {
+          "hex": "8010",
+          "instruction": "mov    rxfifo[y], isr"
+        },
+        {
+          "hex": "801F",
+          "instruction": "mov    rxfifo[3], isr"
+        },
+        {
+          "hex": "8090",
+          "instruction": "mov    osr, rxfifo[y]"
+        },
+        {
+          "hex": "809F",
+          "instruction": "mov    osr, rxfifo[3]"
+        },
+        {
+          "hex": "A071",
+          "instruction": "mov    pindirs, ::x"
+        },
+        {
+          "hex": "2063",
+          "instruction": "wait   0 jmppin + 3"
+        },
+        {
+          "hex": "C05F",
+          "instruction": "irq    next clear 7"
+        }
+      ],
+      "codeBlocks": [],
+      "langOpts": []
+    },
+    {
+      "name": "raw",
+      "pioVersion": 0,
+      "wrapTarget": 0,
+      "wrap": 1,
+      "origin": -1,
+      "usedGPIORanges": 0,
+      "publicSymbols": {},
+      "publicLabels": {},
+      "in": null,
+      "out": null,
+      "setCount": null,
+      "sideset": {
+        "size": 1,
+        "optional": true,
+        "pindirs": false
+      },
+      "movStatus": null,
+      "fifoConfig": null,
+      "clockDiv": null,
+      "instructions": [
+        {
+          "hex": "FFFF",
+          "instruction": "reserved"
+        },
+        {
+          "hex": "BF42",
+          "instruction": "nop                    side 0 [15]"
+        }
+      ],
+      "codeBlocks": [],
+      "langOpts": []
+    }
+  ]
+}
