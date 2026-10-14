@@ -8,7 +8,6 @@ let package = Package(
     platforms: [.macOS(.v11)],
     products: [
         .library(name: "RP2xxxPIO", targets: ["RP2xxxPIO"]),
-        .executable(name: "PIOExample", targets: ["PIOExample"]),
     ],
     traits: [.trait(name: "SDKInterop", description: "Enable CPicoSDK program and state-machine configuration adapters")],
     dependencies: [
@@ -17,7 +16,6 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "603.0.2"),
     ],
     targets: [
-        .executableTarget(name: "PIOExample", dependencies: ["RP2xxxPIO"], path: "Examples/Basic"),
         .target(name: "RP2xxxPIO", dependencies: [
             "RP2xxxPIOCore", "RP2xxxPIOMacros",
             .target(name: "RP2xxxPIOSDK", condition: .when(traits: ["SDKInterop"])),

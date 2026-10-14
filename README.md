@@ -6,33 +6,49 @@ default; the optional `SDKInterop` trait adds CPicoSDK adapters.
 
 ## Run the example
 
-The example is a normal, non-Embedded Swift command-line executable:
+The example is its own Swift package in `Examples/I2S`. It assembles a stereo
+I2S transmitter with two 16-bit channels. From the repository root, run:
 
 ```sh
-swift run PIOExample
-swift run PIOExample 12
-swift run PIOExample 32  # Demonstrates an invalid runtime operand.
+swift run --package-path Examples/I2S I2SExample
 ```
 
-It prints compiled instruction words, label offsets, configuration data, and
-runtime assembly results. No board, SDK setup, snapshot toolchain, or shell
-build script is needed. Its source is in `Examples/Basic/PIOExample.swift`.
+The two bit loops shift audio data onto the output pin while side-set drives
+BCLK and LRCLK. An external entry-point label identifies the initial counter
+setup. The example uses fixed pin ordering: BCLK at the side-set base GPIO and
+LRCLK at the next GPIO.
+
+You can also open that package directly and run `swift run` from its directory.
+It depends on the library through a local package dependency (`../..`).
+
+This is a normal, non-Embedded Swift executable: it prints the eight compiled
+instruction words and entry-point offset, without accessing hardware. No SDK
+setup or shell build script is needed. The source is in
+`Examples/I2S/Sources/I2SExample/I2SExample.swift`.
 
 ```swift
 import RP2xxxPIO
 
 @PIOLabel var entryPoint
-let blink = #constPIO(sideSet: .init(bits: 1, optional: true)) {
-    @PIOLabel var loop
+let program = #constPIO(sideSet: .init(bits: 2)) {
+    @PIOLabel var bitloop0
+    @PIOLabel var bitloop1
+
+    Label(bitloop1)
+    Out(.pins, 1).sideSet(value: 0b10)
+    Jmp(.xDecrement, to: bitloop1).sideSet(value: 0b11)
+    Out(.pins, 1).sideSet(value: 0b00)
+    Set(.x, 14).sideSet(value: 0b01)
+
+    Label(bitloop0)
+    Out(.pins, 1).sideSet(value: 0b00)
+    Jmp(.xDecrement, to: bitloop0).sideSet(value: 0b01)
+    Out(.pins, 1).sideSet(value: 0b10)
+
     Label(entryPoint)
-    Label(loop)
-    WrapTarget()
-    Set(.pins, 1).sideSet(value: 1).delay(7)
-    Set(.pins, 0).sideSet(value: 0).delay(7)
-    Wrap()
-    Jmp(to: loop)
+    Set(.x, 14).sideSet(value: 0b11)
 }
-let entryOffset = blink.labels[entryPoint] // 0, relative to this program
+let entryOffset = program.labels[entryPoint] // 7, relative to this program
 ```
 
 `#constPIO` requires instructions and encoding options to be known and valid during macro expansion.
@@ -244,7 +260,7 @@ swift package --allow-writing-to-package-directory generate-constexpr-registry \
 ```sh
 bash Scripts/prepare-pioasm.sh
 swift test -Xswiftc -warnings-as-errors
-swift run PIOExample
+swift run --package-path Examples/I2S I2SExample
 ```
 
 The reference build is pinned to pico-sdk revision
