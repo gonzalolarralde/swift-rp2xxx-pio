@@ -1,8 +1,64 @@
 # RP2xxxPIO
 
-A Swift PIO assembler and result-builder DSL for RP2040 and RP2350. Import
-`RP2xxxPIO` on a host or in Embedded Swift. The public product is host-safe by
-default; the optional `SDKInterop` trait adds CPicoSDK adapters.
+A Swift assembler and result-builder DSL for the RP2040 and RP2350 programmable
+I/O (PIO) hardware. Compile instruction words with `#constPIO`, assemble dynamic
+programs with `try #pio`, and describe state-machine settings with `PIOProgram`.
+The `RP2xxxPIO` product is host-safe by default; the optional `SDKInterop` trait
+adds CPicoSDK adapters for Embedded Swift applications.
+
+This is an experimental library. The API may change, and configuration is not
+guaranteed to optimize to the same code as pioasm-generated SDK calls. See
+[verification](#verification) for the checks and current limitations.
+
+## Getting started
+
+Use a Swift 6.3 or newer toolchain. The host packages declare macOS 11 as their
+minimum deployment target; the host examples and verification workflow have
+been exercised on macOS. The SDK integration checks and optimization script
+use `xcrun`.
+
+The current [package manifest](Package.swift) uses a **local** dependency on
+`../swift-constexpr`. Clone both repositories into the same parent directory,
+keeping these directory names:
+
+```sh
+git clone --branch main https://github.com/gonzalolarralde/swift-constexpr.git
+git clone --branch main https://github.com/gonzalolarralde/swift-rp2xxx-pio.git
+cd swift-rp2xxx-pio
+swift run --package-path Examples/I2S I2SExample
+```
+
+This checkout is not yet a standalone URL-based SwiftPM dependency: a remote
+dependency on `swift-rp2xxx-pio` cannot resolve its sibling path automatically.
+Use the local checkout until that dependency is published through the manifest.
+No Pico board, SDK installation, or pioasm executable is needed for the host
+example. SwiftPM downloads the host package dependencies on the first build.
+
+### Add the local library to a package
+
+For an application next to the two checkouts, a minimal host `Package.swift` is:
+
+```swift
+// swift-tools-version: 6.3
+import PackageDescription
+
+let package = Package(
+    name: "PIODemo",
+    platforms: [.macOS(.v11)],
+    dependencies: [
+        .package(path: "../swift-rp2xxx-pio"),
+    ],
+    targets: [
+        .executableTarget(name: "PIODemo", dependencies: [
+            .product(name: "RP2xxxPIO", package: "swift-rp2xxx-pio"),
+        ]),
+    ]
+)
+```
+
+Import `RP2xxxPIO` in `Sources/PIODemo/main.swift` and use the examples below.
+For firmware, also enable the trait and direct SDK dependency described in
+[CPicoSDK interop](#cpicosdk-interop).
 
 ## I2S host example
 
@@ -24,12 +80,18 @@ It depends on the library through a local package dependency (`../..`).
 This is a normal, non-Embedded Swift executable: it prints the eight compiled
 instruction words and entry-point offset, without accessing hardware. No SDK
 setup or shell build script is needed. The source is in
-`Examples/I2S/Sources/I2SExample/I2SExample.swift`.
+[I2SExample.swift](Examples/I2S/Sources/I2SExample/I2SExample.swift).
+Expected program output:
+
+```text
+I2S: 8 instructions, entry point 7
+Instructions: 7001 1840 6001 e82e 6001 844 7001 f82e
+```
 
 ```swift
 import RP2xxxPIO
 
-@PIOLabel var entryPoint
+let entryPoint = PIOLabelHandle()
 let program = #constPIO(sideSet: .init(bits: 2)) {
     @PIOLabel var bitloop0
     @PIOLabel var bitloop1
@@ -48,11 +110,11 @@ let program = #constPIO(sideSet: .init(bits: 2)) {
     Label(entryPoint)
     Set(.x, 14).sideSet(value: 0b11)
 }
-let entryOffset = program.labels[entryPoint] // 7, relative to this program
+let entryOffset = program.labels[entryPoint] // Optional(7), relative to this program
 ```
 
 `#constPIO` requires instructions and encoding options to be known and valid during macro expansion.
-It emits immutable `PIOProgramData` data: instruction words, version, side-set encoding,
+It emits immutable `PIOProgramData`: instruction words, version, side-set encoding,
 wrap bounds, GPIO-range metadata, public numeric symbols, and FIFO requirements.
 Local labels disappear entirely. Captured labels receive a small runtime
 association with their already-compiled offsets; no instructions are assembled
@@ -89,7 +151,7 @@ let native = try PIOAssembler.assemble {
 
 `Examples/PicoAudio` is a second, Embedded Swift package for Pico 2. It copies
 the I2S program above, loads it into PIO, configures the pins and state machine,
-and continuously sends low-level pseudorandom stereo noise at approximately
+and continuously sends low-amplitude pseudorandom stereo noise at approximately
 48 kHz. Each FIFO word contains two signed 16-bit samples; the PIO clock divider
 sets the playback rate, and blocking FIFO writes pace the producer.
 
@@ -105,46 +167,53 @@ and operation without MCLK:
 
 Power the DAC/amplifier according to its own requirements; do not connect a
 speaker directly to a GPIO. Start with the amplifier volume low. The GPIOs and
-sample rate are constants at the top of `PicoAudio.swift`; the two clock GPIOs
+sample rate are constants in `PicoAudio.run()`; the two clock GPIOs
 must remain consecutive.
 
 ```sh
-cd Examples/PicoAudio
-./build.sh
+# From the repository root:
+(cd Examples/PicoAudio && ./build.sh)
 ```
 
-The script is copied byte-for-byte from
-[CPicoSDK's main-branch example](https://github.com/gonzalolarralde/CPicoSDK/blob/a1aa863645122f9a985a0b6de4f63c5e04853a73/Example/build.sh).
-It uses ordinary SwiftPM through Swiftly and CPicoSDK's
-preparation/finalization workflow.
-Install Swiftly first; the initial build may download the SDK and pinned Swift
-snapshot. The app depends on CPicoSDK `main`, with the resolved revision saved
-in its own `Package.resolved`. It also uses the local PIO library and the same
-sibling `swift-constexpr` checkout as the host example.
+The script is copied byte-for-byte from the
+[CPicoSDK example at revision `a1aa863`](https://github.com/gonzalolarralde/CPicoSDK/blob/a1aa863645122f9a985a0b6de4f63c5e04853a73/Example/build.sh).
+It uses SwiftPM through Swiftly and CPicoSDK's preparation/finalization workflow.
+Install Swiftly first. Preparation may download build tools and the SDK, install
+the toolchain pinned in [.swift-version](Examples/PicoAudio/.swift-version), and
+generate local editor/toolset settings. See [build.sh](Examples/PicoAudio/build.sh)
+for preparation options. The app selects CPicoSDK `main`; its
+[Package.resolved](Examples/PicoAudio/Package.resolved) records the resolved
+revision. Both sibling checkouts from [getting started](#getting-started) are
+still required.
 
 A normal build produces ELF and UF2 files without programming a board. Flashing
-is a separate, explicit action via the unchanged script's `--flash` option.
-The source is in `Examples/PicoAudio/Sources/PicoAudio/PicoAudio.swift`.
+is a separate, explicit action via the script's `--flash` option.
+The application entry point is
+[PicoAudio.swift](Examples/PicoAudio/Sources/PicoAudio/PicoAudio.swift).
+The firmware has been build-checked and its setup exercised with host-side
+hardware substitutes; audio output has not been verified on a physical board.
 
-The hand-written `I2S.swift` contains an inert `I2S.Program: PIOProgram` struct
+The hand-written [I2S.swift](Examples/PicoAudio/Sources/PicoAudio/I2S.swift)
+contains an inert `I2S.Program: PIOProgram` struct
 and a non-owning `I2S` hardware handle. Program requirements are instance members;
 only the immutable compiled instructions and label identity use private shared
 storage. The protocol supplies metadata, label lookup, validated configuration,
-and scoped C interop; there is no second configuration macro.
+and scoped C interop.
 
 `PicoAudio.swift` explicitly claims a state machine and calls
 `I2S.Program().addProgram(to: pio)`. That loading convenience lives in the
-application's `PIOHelpers.swift`, not the library. `I2S.init(pio:sm:offset:...)`
+application's [PIOHelpers.swift](Examples/PicoAudio/Sources/PicoAudio/PIOHelpers.swift),
+not the library. `I2S.init(pio:sm:offset:...)`
 takes those existing resources, validates the pins and sample rate, and configures
 and starts the state machine. It never claims, loads, unloads, or unclaims anything.
 `audio.write(frame)` sends a stereo frame; copies of the handle refer to the same
 hardware. Setup failures are caught and reported without forced error handling.
-There is no `.pio` input or generated Swift file in this example. The build script
-remains unchanged.
+There is no `.pio` input or generated Swift file in this example.
 
 ## Instructions and control flow
 
-The DSL covers all instruction forms in the pinned upstream PIO assembler:
+The DSL covers the instruction forms in the pinned upstream PIO assembler;
+RP2350-only instructions require `version: .rp2350`:
 
 - `Jmp(condition, to: labelOrAddress)`, with all eight conditions.
 - `Wait(polarity, .gpio(n) / .pin(n) / .irq(n, mode:) / .jmpPin(offset:))`.
@@ -159,7 +228,9 @@ Instructions support `.delay(cycles)` and `.sideSet(value:)`. `Word` is raw
 silently masked. A program contains at most 32 instructions. JMP destinations
 must be inside the program and remain unrelocated for the SDK loader.
 
-`@PIOLabel var loop` declares an immutable, opaque handle. `Label(loop)` marks
+`@PIOLabel var loop` declares an immutable, opaque handle inside a function,
+builder body, or type. At file scope, where Swift does not support property
+wrappers, use `let loop = PIOLabelHandle()` instead. `Label(loop)` marks
 its position and `Jmp(to: loop)` targets it, including forward references.
 Declare it inside the body for a private label, or outside for an entry point
 accessible through `program.labels[loop]`. Offsets belong to each program, so
@@ -288,33 +359,38 @@ origin plus program length must fit the 32-word instruction memory.
 
 ## CPicoSDK interop
 
-Enable `SDKInterop` on this dependency and select board traits on the
-application's direct CPicoSDK dependency. This is optional and separate from
-the host example; the library itself does not choose a board. PicoAudio
-demonstrates this setup for Pico 2.
+Enable `SDKInterop` on this dependency. An application that imports `CPicoSDK`
+must also declare its own CPicoSDK package and target-product dependencies and
+select the appropriate platform/board traits. The PIO library does not select
+a board or provide a complete firmware build configuration. See the complete
+[PicoAudio manifest](Examples/PicoAudio/Package.swift) for a Pico 2 example.
+
+In the application's `dependencies` array, enable the PIO trait with:
 
 ```swift
 .package(path: "../swift-rp2xxx-pio", traits: ["SDKInterop"])
 ```
 
-The trait adds scoped C descriptors and ordinary Swift configuration methods:
+The trait adds scoped C descriptors and ordinary Swift configuration methods.
+For example, using `SerialOutput` from [above](#compilation-and-configuration),
+this application helper loads the program into a supplied PIO block and returns
+its offset and configuration. It does not claim or start a state machine:
 
 ```swift
 import CPicoSDK
+import RP2xxxPIO
 
 enum LoadingError: Error { case sdk(Int32) }
-let program = SerialOutput()
-let loadedOffset = try program.withCProgram { pio_add_program(pio0, $0) }
-guard loadedOffset >= 0 else { throw LoadingError.sdk(loadedOffset) }
-var config = try program.defaultConfig(offset: UInt32(loadedOffset))
-sm_config_set_out_pin_base(&config, 2)
-// Initialize and enable the chosen state machine explicitly.
 
-// The value-based API remains available for runtime/instance-specific choices:
-let setup = try PIOConfiguration(program: program.code,
-    output: program.output, fifo: program.fifo,
-    clockDivider: 2.5, pins: .init(output: 2))
-let nativeConfig = try setup.defaultConfig(offset: UInt32(loadedOffset))
+func loadSerialOutput(into pio: PIO) throws -> (offset: UInt32, config: pio_sm_config) {
+    let program = SerialOutput(clockDivider: 2.5)
+    let result = try program.withCProgram { pio_add_program(pio, $0) }
+    guard result >= 0 else { throw LoadingError.sdk(result) }
+    let offset = UInt32(result)
+    var config = try program.defaultConfig(offset: offset)
+    sm_config_set_out_pin_base(&config, 2)
+    return (offset, config)
+}
 ```
 
 `withCProgram` borrows both the instruction storage and C descriptor. Neither
@@ -334,12 +410,11 @@ compiled instructions or the load offset passed to `defaultConfig`.
 The SDK loader owns JMP relocation and RP2350 GPIO-base adjustment. Loading,
 claiming a state machine, GPIO setup, and enabling hardware are never automatic.
 
-## Dependencies and Embedded boundary
+## Embedded boundary and generated registry
 
-This development checkout requires Swift 6.3+, a sibling `swift-constexpr`
-checkout containing `ConstExprEvaluation`, and CPicoSDK's remote `main` branch
-(the resolved revision is checked in). The host example uses ordinary Swift;
-it does not enable `SDKInterop` or compile CPicoSDK. No changes are required in CPicoSDK.
+The host example uses ordinary Swift; it does not enable `SDKInterop` or compile
+CPicoSDK. Embedded consumers use CPicoSDK's cross-compilation and linking setup.
+No changes to CPicoSDK are required.
 
 `RP2xxxPIOCore` is plain Swift with `ConstExpr` annotations. Those annotations
 generate registrations in the host copy and become no-ops in Embedded mode.
@@ -357,12 +432,20 @@ swift package --allow-writing-to-package-directory generate-constexpr-registry \
 
 ## Verification
 
+From the repository root, run the host suite and example:
+
+```sh
+swift test -Xswiftc -warnings-as-errors
+swift run --package-path Examples/I2S I2SExample
+```
+
+For live comparison against the reference assembler, also install CMake and a
+C++ compiler, then build the pinned pioasm executable (the first run needs
+network access):
+
 ```sh
 bash Scripts/prepare-pioasm.sh
 swift test -Xswiftc -warnings-as-errors
-swift run --package-path Examples/I2S I2SExample
-# Optional firmware build; does not flash a board.
-(cd Examples/PicoAudio && ./build.sh)
 ```
 
 The reference build is pinned to pico-sdk revision
@@ -372,9 +455,23 @@ reference executable, live-oracle tests explicitly skip; checked-in
 upstream golden fixtures, native, macro, error, and branch tests still run.
 Set `PIOASM` to override its path.
 
-To execute the SDK adapter checks on the host, set `PIO_SDK_PATH` to a pico-sdk
-source directory and rerun `swift test`. These checks compile the production
-adapter against the real RP2040 and RP2350 PIO headers using the SDK's host
+To execute the SDK adapter checks on macOS, provide both the pico-sdk sources
+and a CPicoSDK checkout containing its RP2040 compatibility overload. The
+reference build above already downloads suitable pico-sdk sources:
+
+```sh
+PIO_SDK_PATH="$PWD/.build/pioasm-reference" \
+CPICOSDK_ROOT=/absolute/path/to/CPicoSDK \
+swift test -Xswiftc -warnings-as-errors
+```
+
+Replace the CPicoSDK path with your checkout, or with
+`$PWD/Examples/PicoAudio/.build/checkouts/CPicoSDK` after building PicoAudio.
+`PIO_SDK_PATH` may instead point to another compatible pico-sdk source directory.
+The pinned pioasm executable must also be present for these checks to run.
+
+These checks compile the production adapter against the real RP2040 and RP2350
+PIO headers using the SDK's host
 platform shim. They compare 45 value-based and 45 protocol-based configurations
 (nine fixtures at five load offsets) with pioasm-generated C, and verify C metadata
 and 180 repeated, nested protocol/value scoped borrows. They also exercise
@@ -383,22 +480,27 @@ The same harness compiles PicoAudio's actual program, initializer, and loading
 helper with recording substitutes for hardware operations. It checks unchanged
 I2S words/configuration, explicit loading/claiming, initializer call order, invalid
 inputs, and SDK failures without touching hardware.
-Without that variable, this optional integration test explicitly skips. It does
-not access hardware. `CPICOSDK_ROOT` can override the resolved CPicoSDK checkout
-used for its RP2040 descriptor compatibility overload.
+Without `PIO_SDK_PATH` or pioasm, this optional integration test explicitly skips;
+a passing host-only run does not imply that SDK integration was checked. If
+`CPICOSDK_ROOT` is omitted, the harness looks in `.build/checkouts/CPicoSDK`,
+which may not exist in a host-only checkout. No physical hardware is accessed.
 
 ### Optimized setup comparison
 
-This optional developer probe is separate from the host example. It requires
-an already-built CPicoSDK consumer package that imports this library with
+This optional macOS developer probe requires Python 3, the pinned pioasm build,
+and an already-built CPicoSDK consumer that imports this library with
 `SDKInterop`. It compiles the library and CPicoSDK's actual pioasm-generated
-Swift with that consumer's release/Embedded compiler flags:
+Swift with that consumer's release/Embedded compiler flags. After building
+PicoAudio, run from the repository root:
 
 ```sh
 python3 Scripts/Optimization/compare.py \
-  --firmware-package /path/to/consumer --module ConsumerModule
-# Add --triple armv7em-none-none-eabi for an RP2350 consumer build.
+  --firmware-package Examples/PicoAudio --module PicoAudio \
+  --triple armv7em-none-none-eabi
 ```
+
+For a different consumer, substitute its package path and Swift module name.
+RP2040 consumers use `--triple armv6m-none-none-eabi` (the script's default).
 
 The script emits LLVM IR, ARM assembly, an object file, and a JSON report in
 `.build/optimization-comparison/<triple>/`. It uses default and configured
@@ -416,7 +518,7 @@ It reports direct/indirect calls, conditional branches, and referenced helper bo
 a small wrapper can still call a shared routine containing validation and
 configuration branches. These are code-shape comparisons, not timing benchmarks.
 
-The protocol removes the configuration macro, not necessarily its runtime cost.
+The protocol is a convenience API, not a zero-overhead guarantee.
 Ordinary Swift can specialize defaults, but the current RP2040 and RP2350 release
 probes retain shared configuration helpers and storage lifetime work rather than matching
 pioasm's straight-line setters. Stored programs can also retain lazy initialization
@@ -438,3 +540,7 @@ the C SDK; this library stores valid `UInt16`/`UInt8` values directly.
 Embedded firmware preparation, linking, and flashing belong to the consuming
 CPicoSDK application. PicoAudio uses CPicoSDK's unchanged launcher for those
 steps; the PIO compiler does not perform them.
+
+## License
+
+[MIT](LICENSE.md). Copyright (c) 2026 Gonzalo Larralde.
