@@ -2,7 +2,7 @@
 import CPicoSDK
 import RP2xxxPIOCore
 
-public extension PIOProgram {
+public extension PIOProgramData {
     /// Borrows the instruction storage and C descriptor for the duration of `body`.
     /// Neither pointer may escape. `pio_add_program` copies the words into PIO
     /// instruction memory and can safely be called here. This method does not load it.
@@ -26,13 +26,29 @@ public extension PIOProgram {
     }
 }
 
+public extension PIOProgram {
+    /// Validates the declared defaults, then borrows a descriptor with this
+    /// program's origin constraint. Neither pointer may escape `body`.
+    @inlinable func withCProgram<Result>(
+        _ body: (UnsafePointer<pio_program_t>) -> Result
+    ) throws(PIOConfigurationError) -> Result {
+        try configuration().withCProgram(body)
+    }
+
+    /// Constructs a local SDK configuration. Resource ownership and all hardware
+    /// operations remain explicit in the caller or a program-specific extension.
+    @inlinable func defaultConfig(offset: UInt32) throws(PIOConfigurationError) -> pio_sm_config {
+        try configuration().defaultConfig(offset: offset)
+    }
+}
+
 public extension PIOConfiguration {
     /// Borrows the program with this configuration's optional fixed origin.
     func withCProgram<Result>(_ body: (UnsafePointer<pio_program_t>) -> Result) -> Result {
         program._withCProgram(origin: origin, body)
     }
 
-    /// Native counterpart of #pioConfig. Only constructs a local C value;
+    /// Applies a validated configuration to a local C value;
     /// GPIO setup, claiming, loading, initialization, and enabling remain explicit.
     @inlinable func defaultConfig(offset: UInt32) throws(PIOConfigurationError) -> pio_sm_config {
         try _validateOffset(offset)

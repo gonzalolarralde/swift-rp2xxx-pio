@@ -83,7 +83,7 @@ import Testing
 }
 
 @Test func repeatedDeclarationsCreateFreshHandles() {
-    func make() -> (PIOProgram, PIOLabelHandle) {
+    func make() -> (PIOProgramData, PIOLabelHandle) {
         @PIOLabel var entry
         return (#constPIO { Label(entry); Jmp(to: entry) }, entry)
     }

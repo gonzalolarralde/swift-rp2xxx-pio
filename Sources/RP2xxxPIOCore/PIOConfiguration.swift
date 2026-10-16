@@ -59,7 +59,7 @@ public enum PIOConfigurationError: Error, Equatable, Sendable {
 /// Validated runtime setup, separate from compilation. Wrap and side-set encoding
 /// are inherited from `program`; origin is a loader constraint, not an instruction edit.
 public struct PIOConfiguration: Equatable, Sendable {
-    public let program: PIOProgram
+    public let program: PIOProgramData
     public let origin: Int?
     public let sideSetPinDirections: Bool
     public let pins: PIOPinMapping
@@ -71,7 +71,7 @@ public struct PIOConfiguration: Equatable, Sendable {
     public let clockDividerInteger: UInt16
     public let clockDividerFraction: UInt8
 
-    @inlinable public init(program: PIOProgram, origin: Int? = nil, input: PIOShiftConfiguration? = nil,
+    @inlinable public init(program: PIOProgramData, origin: Int? = nil, input: PIOShiftConfiguration? = nil,
                 output: PIOShiftConfiguration? = nil, setCount: Int? = nil,
                 fifo: PIOFIFOJoin = .txrx, movStatus: PIOMovStatus? = nil,
                 clockDivider: Double = 1, sideSetPinDirections: Bool = false,
@@ -129,7 +129,7 @@ public struct PIOConfiguration: Equatable, Sendable {
         self.clockDividerFraction = UInt8((divider - Float(UInt16(divider))) * 256)
     }
 
-    /// Compiler support shared by native configuration and generated setup.
+    /// Validation shared by value-based and protocol-based configuration.
     @inlinable public static func _check(_ value: Int, _ minimum: Int, _ maximum: Int, _ name: String) throws(PIOConfigurationError) {
         guard value >= minimum && value <= maximum else {
             throw .operandOutOfRange(name: name, value: value, minimum: minimum, maximum: maximum)

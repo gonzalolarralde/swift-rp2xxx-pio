@@ -19,7 +19,6 @@ let package = Package(
         .target(name: "RP2xxxPIO", dependencies: [
             "RP2xxxPIOCore", "RP2xxxPIOMacros",
             .target(name: "RP2xxxPIOSDK", condition: .when(traits: ["SDKInterop"])),
-            .product(name: "CPicoSDK", package: "CPicoSDK", condition: .when(traits: ["SDKInterop"])),
         ]),
         .target(name: "RP2xxxPIOCore", dependencies: [
             .product(name: "ConstExpr", package: "swift-constexpr"),

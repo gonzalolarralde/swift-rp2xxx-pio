@@ -89,7 +89,7 @@ enum PIOExpansion {
 
     private static func failure(_ message: String, strict: Bool) -> ExprSyntax {
         // A typed closure avoids a secondary Never-to-Program coercion error.
-        let expression = "{ () -> RP2xxxPIOCore.PIOProgram in Swift.fatalError(\"\(message)\") }()"
+        let expression = "{ () -> RP2xxxPIOCore.PIOProgramData in Swift.fatalError(\"\(message)\") }()"
         return ExprSyntax(stringLiteral: strict ? expression : "RP2xxxPIOCore.PIOAssembler._validated(\(expression))")
     }
 }

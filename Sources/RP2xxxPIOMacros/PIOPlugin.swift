@@ -4,7 +4,7 @@ import SwiftSyntaxMacros
 
 @main
 struct PIOPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [PIOMacro.self, ConstPIOMacro.self, PIOConfigMacro.self]
+    let providingMacros: [Macro.Type] = [PIOMacro.self, ConstPIOMacro.self]
 }
 
 public struct PIOMacro: ExpressionMacro {

@@ -93,7 +93,7 @@ final class PIOOracleTests: XCTestCase {
             Label(entryPoint)
             Set(.x, 14).sideSet(value: 3)
         }
-        func dynamic(swapped: Bool) throws(PIOAssemblyError) -> PIOProgram {
+        func dynamic(swapped: Bool) throws(PIOAssemblyError) -> PIOProgramData {
             try #pio(sideSet: .init(bits: 2)) {
                 @PIOLabel var bitloop0
                 @PIOLabel var bitloop1

@@ -13,7 +13,7 @@ struct PIOAssembly {
         version = options.version; sideSet = options.sideSet
     }
 
-    mutating func assemble(_ source: PIOProgramSource) throws(PIOAssemblyError) -> PIOProgram {
+    mutating func assemble(_ source: PIOProgramSource) throws(PIOAssemblyError) -> PIOProgramData {
         for statement in source.statements {
             switch statement {
             case .instruction, .word:
@@ -45,7 +45,7 @@ struct PIOAssembly {
         if encoder.fifoRequirements.contains(.push), !encoder.fifoRequirements.intersection([.indexedRead, .indexedWrite]).isEmpty {
             throw .invalidConfiguration("Push and indexed RX FIFO moves require incompatible FIFO modes")
         }
-        return PIOProgram(
+        return PIOProgramData(
             instructions: words, version: version, sideSet: sideSet,
             wrapTarget: wrapTarget ?? 0, wrap: wrap ?? max(0, words.count - 1),
             usedGPIORanges: encoder.usedGPIORanges, symbols: publicSymbols, labels: labels,

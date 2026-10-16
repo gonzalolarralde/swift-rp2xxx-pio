@@ -23,7 +23,7 @@ final class PIOCompilerTests: XCTestCase {
     func testTypedThrowingContractAndRenderedIRCompile() throws {
         let result = try typecheck("""
         import RP2xxxPIO
-        func dynamic(_ input: Int) throws(PIOAssemblyError) -> PIOProgram {
+        func dynamic(_ input: Int) throws(PIOAssemblyError) -> PIOProgramData {
             try #pio(version: .rp2350) {
                 Mov(to: .rxFIFO(.index(3)), from: .isr)
                 Set(.x, input)
@@ -36,7 +36,7 @@ final class PIOCompilerTests: XCTestCase {
         func configure(_ clock: Double) throws(PIOConfigurationError) -> PIOConfiguration {
             try PIOConfiguration(program: #constPIO { Nop() }, clockDivider: clock)
         }
-        func captured() throws(PIOAssemblyError) -> PIOProgram {
+        func captured() throws(PIOAssemblyError) -> PIOProgramData {
             @PIOLabel var entry
             let program = #constPIO(sideSet: .init(bits: 1, optional: true)) {
                 @PIOLabel var loop

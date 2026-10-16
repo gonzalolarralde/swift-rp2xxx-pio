@@ -143,7 +143,7 @@ import Testing
 @Test func dynamicBranchesRemainLazyAndThrowTypedErrors() throws {
     var events: [Int] = []
     func read(_ value: Int) -> Int { events.append(value); return value }
-    func program(_ flag: Bool, _ value: Int) throws(PIOAssemblyError) -> PIOProgram {
+    func program(_ flag: Bool, _ value: Int) throws(PIOAssemblyError) -> PIOProgramData {
         try #pio {
             if flag { Set(.x, read(value)) } else { Set(.y, read(7)) }
             Nop()
@@ -173,7 +173,7 @@ import Testing
 }
 
 @Test func fifoCompatibilityIsCheckedForEveryMode() throws {
-    let programs: [(PIOProgram, [PIOFIFOJoin])] = [
+    let programs: [(PIOProgramData, [PIOFIFOJoin])] = [
         (#constPIO { Push() }, [.txrx, .rx]),
         (#constPIO(version: .rp2350) { Mov(to: .rxFIFO(.y), from: .isr) }, [.txPut, .putGet]),
         (#constPIO(version: .rp2350) { Mov(to: .osr, from: .rxFIFO(.y)) }, [.txGet, .putGet]),
