@@ -7,6 +7,10 @@ public enum PIOStatement: Equatable, Sendable {
     case label(PIOLabelHandle)
     case symbol(String, Int, isPublic: Bool)
     case word(Int)
+    /// Already encoded bits. Compiler-produced values retain the source
+    /// instruction's metadata, which cannot always be recovered from its bits
+    /// (notably RP2350 WAIT GPIO 32...47). The metadata is trusted, not decoded.
+    case encoded(UInt16, gpioRanges: UInt8, fifo: UInt8)
 }
 
 @ConstExpr(registrationAccess: .package)
@@ -23,6 +27,9 @@ public extension PIOBuilder {
     static func buildExpression(_ instruction: PIOInstruction) -> [PIOStatement] { [.instruction(instruction)] }
     static func buildExpression(_ directive: PIODirective) -> [PIOStatement] { [.directive(directive)] }
     static func buildExpression(_ statement: PIOStatement) -> [PIOStatement] { [statement] }
+    /// A raw, complete instruction word, including delay/side-set bits. Like
+    /// Word, this is an opaque escape hatch and does not infer GPIO/FIFO usage.
+    static func buildExpression(_ word: UInt16) -> [PIOStatement] { [.encoded(word, gpioRanges: 0, fifo: 0)] }
     static func buildPartialBlock(first: [PIOStatement]) -> [PIOStatement] { first }
     static func buildPartialBlock(accumulated: [PIOStatement], next: [PIOStatement]) -> [PIOStatement] { accumulated + next }
     static func buildFinalResult(_ statements: [PIOStatement]) -> PIOProgramSource { PIOProgramSource(statements) }

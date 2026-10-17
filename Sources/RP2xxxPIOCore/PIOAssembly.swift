@@ -16,7 +16,7 @@ struct PIOAssembly {
     mutating func assemble(_ source: PIOProgramSource) throws(PIOAssemblyError) -> PIOProgramData {
         for statement in source.statements {
             switch statement {
-            case .instruction, .word:
+            case .instruction, .word, .encoded:
                 guard instructions.count < 32 else { throw .invalidStructure("a program may contain at most 32 instructions") }
                 instructions.append(statement)
             case .label(let label):
@@ -34,6 +34,9 @@ struct PIOAssembly {
         for statement in instructions {
             switch statement {
             case .instruction(let instruction): words.append(try encoder.encode(instruction))
+            case .encoded(let word, let gpioRanges, let fifo):
+                try encoder.mergeMetadata(gpioRanges: gpioRanges, fifo: fifo)
+                words.append(word)
             case .word(let value):
                 if let sideSet, !sideSet.optional {
                     throw .invalidConfiguration("raw words cannot supply mandatory side-set bits")

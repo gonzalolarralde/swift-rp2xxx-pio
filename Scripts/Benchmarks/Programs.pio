@@ -1,0 +1,26 @@
+.program bench_base
+.side_set 2
+bitloop1:
+out pins, 1 side 2
+jmp x-- bitloop1 side 3
+out pins, 1 side 0
+set x, 14 side 1
+bitloop0:
+out pins, 1 side 0
+jmp x-- bitloop0 side 1
+out pins, 1 side 2
+set x, 14 side 3
+
+.program bench_extra
+.side_set 2
+bitloop1:
+out pins, 1 side 2
+jmp x-- bitloop1 side 3
+out pins, 1 side 0
+set x, 14 side 1
+nop side 0
+bitloop0:
+out pins, 1 side 0
+jmp x-- bitloop0 side 1
+out pins, 1 side 2
+set x, 14 side 3

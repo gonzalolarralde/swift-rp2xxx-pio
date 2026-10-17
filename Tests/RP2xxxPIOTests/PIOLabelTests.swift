@@ -1,6 +1,18 @@
 import RP2xxxPIO
 import Testing
 
+@Test func numericCompilerLabelsHaveExactKeysAndSeparateRuntimeIdentities() {
+    let ids: [UInt64] = [0, 1, 31, 32, UInt64(UInt32.max), UInt64(UInt32.max) + 1, UInt64.max]
+    let handles = ids.map(PIOLabelHandle._symbol)
+    #expect(Set(handles).count == ids.count)
+    for (id, handle) in zip(ids, handles) {
+        #expect(handle == PIOLabelHandle._symbol(id))
+        #expect(handle != PIOLabelHandle())
+    }
+    let table = Dictionary(uniqueKeysWithValues: zip(handles, ids))
+    for id in ids { #expect(table[._symbol(id)] == id) }
+}
+
 @Test func capturedLabelsBelongToEachProgram() throws {
     @PIOLabel var entry
     let first = #constPIO { Label(entry); Nop() }

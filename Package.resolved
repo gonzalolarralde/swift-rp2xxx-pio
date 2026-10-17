@@ -1,6 +1,15 @@
 {
-  "originHash" : "5fed8c5e35ea68cbc4b3a39ecc1de446eececefcc9176928b6ba744ad540c750",
+  "originHash" : "d46c2627ee1f25672017aa0951aea5da934f5cf25f28661a643a6c6e958d9678",
   "pins" : [
+    {
+      "identity" : "swift-constexpr",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalolarralde/swift-constexpr.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "7106f1cd5981d9077b1b8337005094c0b90f2a17"
+      }
+    },
     {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",

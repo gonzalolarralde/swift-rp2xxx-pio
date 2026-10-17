@@ -8,6 +8,14 @@ struct PIOEncoder {
     var usedGPIORanges: UInt8 = 0
     var fifoRequirements: PIOFIFORequirements = []
 
+    mutating func mergeMetadata(gpioRanges: UInt8, fifo: UInt8) throws(PIOAssemblyError) {
+        usedGPIORanges |= gpioRanges
+        guard usedGPIORanges & 5 != 5 else {
+            throw .invalidConfiguration("WAIT GPIO cannot mix GPIO 0...15 with GPIO 32...47")
+        }
+        fifoRequirements.formUnion(.init(rawValue: fifo))
+    }
+
     mutating func encode(_ instruction: PIOInstruction) throws(PIOAssemblyError) -> UInt16 {
         let word = try operation(instruction.operation)
         let totalSideBits = sideSet?.totalBits ?? 0
@@ -57,8 +65,7 @@ struct PIOEncoder {
         case .gpio(let value):
             sourceBits = 0
             index = try checked(value, 0, version == .rp2040 ? 31 : 47, "WAIT GPIO")
-            usedGPIORanges |= 1 << (index / 16)
-            guard usedGPIORanges & 5 != 5 else { throw .invalidConfiguration("WAIT GPIO cannot mix GPIO 0...15 with GPIO 32...47") }
+            try mergeMetadata(gpioRanges: 1 << (index / 16), fifo: 0)
         case .pin(let value): sourceBits = 1; index = try checked(value, 0, 31, "WAIT pin")
         case .irq(let value, let mode):
             try checkIRQMode(mode)

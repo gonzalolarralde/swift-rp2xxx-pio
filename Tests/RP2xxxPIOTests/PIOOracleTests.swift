@@ -139,6 +139,43 @@ final class PIOOracleTests: XCTestCase {
         }
     }
 
+    func testPartialBranchesOperandsAndSideSetAgainstPioasm() throws {
+        @PIOLabel var entry
+        func program(_ extra: Bool, _ count: Int, _ side: Int) throws(PIOAssemblyError) -> PIOProgramData {
+            try #pio(sideSet: .init(bits: 2)) {
+                @PIOLabel var loop
+                Label(loop)
+                Out(.pins, 1).sideSet(value: 2)
+                Out(.pins, count).sideSet(value: 0)
+                if extra { Nop().sideSet(value: 1) }
+                Label(entry)
+                Set(.x, 14).sideSet(value: side)
+                Jmp(.xDecrement, to: loop).sideSet(value: 3)
+            }
+        }
+        for extra in [false, true] {
+            for (count, side) in [(1, 0), (16, 2), (32, 3)] {
+                let reference = try XCTUnwrap(oracle("""
+                .program mixed
+                .side_set 2
+                loop:
+                out pins, 1 side 2
+                out pins, \(count) side 0
+                \(extra ? "nop side 1" : "")
+                public entry:
+                set x, 14 side \(side)
+                jmp x-- loop side 3
+                """).first)
+                let value = try program(extra, count, side)
+                let words = try XCTUnwrap(reference["instructions"] as? [[String: Any]])
+                    .map { try XCTUnwrap($0["hex"] as? String).flatMapHex() }
+                XCTAssertEqual(value.instructions, words)
+                XCTAssertEqual(value.labels[entry], (reference["publicLabels"] as? [String: Int])?["entry"])
+                XCTAssertEqual(value.wrap, reference["wrap"] as? Int)
+            }
+        }
+    }
+
     func testLEDRowForwardLabelsAgainstPioasm() throws {
         let program = #constPIO(sideSet: .init(bits: 1)) {
             let width = 64

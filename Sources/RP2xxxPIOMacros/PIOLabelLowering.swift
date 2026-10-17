@@ -1,15 +1,17 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import RP2xxxPIOCore
 
 /// Label handles are not host-evaluated objects. For constant assembly, replace
 /// lexical labels with private symbols, then bind only captured handles afterward.
 /// The original closure remains authoritative whenever assembly must be dynamic.
 final class PIOLabelLowering {
     struct Symbol {
-        let key: String
+        let key: UInt64
+        let name: String
         let capture: String?
         var expression: ExprSyntax {
-            ExprSyntax(stringLiteral: "RP2xxxPIOCore.PIOLabelHandle._symbol(\(StringLiteralExprSyntax(content: key)))")
+            ExprSyntax(stringLiteral: "RP2xxxPIOCore.PIOLabelHandle._symbol(\(key))")
         }
     }
 
@@ -30,11 +32,44 @@ final class PIOLabelLowering {
     private var references: [(DeclReferenceExprSyntax, Binding?)] = []
     private var allowed: Set<SyntaxIdentifier> = []
     private var captured: [String: Symbol] = [:]
-    private var nextID = 0
+    private var symbols: [Symbol] = []
     private(set) var failureReason: String?
 
     var captures: [Symbol] { captured.values.sorted { $0.key < $1.key } }
     var hasLabels: Bool { !wrappers.isEmpty || !captured.isEmpty || bindings.values.contains { $0.symbol != nil } }
+
+    // Recover diagnostic names from the already-evaluated source only after
+    // the authoritative assembler reports an error. No names or formatting
+    // routines need to be carried in the device's label representation.
+    func undefinedLabel(in source: PIOProgramSource) -> Symbol? {
+        let declared = Set(source.statements.compactMap { statement -> PIOLabelHandle? in
+            if case .label(let handle) = statement { return handle }
+            return nil
+        })
+        for case .instruction(let instruction) in source.statements {
+            if case .jmp(_, .label(let handle)) = instruction.operation, !declared.contains(handle) {
+                return symbols.first { $0.key == handle.symbolicID }
+            }
+        }
+        return nil
+    }
+
+    func duplicateName(in source: PIOProgramSource) -> String? {
+        var handles: Set<PIOLabelHandle> = []
+        var names: Set<String> = []
+        for statement in source.statements {
+            switch statement {
+            case .label(let handle):
+                if !handles.insert(handle).inserted {
+                    return symbols.first { $0.key == handle.symbolicID }?.name
+                }
+            case .symbol(let name, _, _):
+                if !names.insert(name).inserted { return name }
+            default: break
+            }
+        }
+        return nil
+    }
 
     func lower(_ closure: ClosureExprSyntax) -> ClosureExprSyntax {
         scanBlock(closure.statements, environment: [:])
@@ -122,8 +157,11 @@ final class PIOLabelLowering {
     }
 
     private func makeSymbol(name: String, capture: String?) -> Symbol {
-        defer { nextID += 1 }
-        return Symbol(key: "\(capture == nil ? "local" : "external"):\(nextID):\(name)", capture: capture)
+        // All local and captured symbols share this one allocation sequence.
+        // UInt64 represents every possible host collection index exactly.
+        let symbol = Symbol(key: UInt64(symbols.count), name: name, capture: capture)
+        symbols.append(symbol)
+        return symbol
     }
 
     private func functionName(_ expression: ExprSyntax, environment: [String: Binding]) -> String? {

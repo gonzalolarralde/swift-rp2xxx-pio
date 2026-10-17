@@ -2,6 +2,15 @@
   "originHash" : "0d600d2ee7802a702a37c68fd8f4b04f7142990ff02c4c3551ea739f7fb9763f",
   "pins" : [
     {
+      "identity" : "swift-constexpr",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalolarralde/swift-constexpr.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "7106f1cd5981d9077b1b8337005094c0b90f2a17"
+      }
+    },
+    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",

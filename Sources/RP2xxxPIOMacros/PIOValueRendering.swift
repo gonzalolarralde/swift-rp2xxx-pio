@@ -35,6 +35,8 @@ enum PIOValueRendering {
         case .label(let value): body = ".label(\(try label(value)))"
         case .symbol(let name, let value, let isPublic): body = ".symbol(\(quoted(name)), \(value), isPublic: \(isPublic))"
         case .word(let value): body = ".word(\(value))"
+        case .encoded(let word, let gpioRanges, let fifo):
+            body = ".encoded(\(word), gpioRanges: \(gpioRanges), fifo: \(fifo))"
         }
         return "RP2xxxPIOCore.PIOStatement" + body
     }
@@ -100,8 +102,8 @@ enum PIOValueRendering {
     private static func simple<T>(_ value: T) -> String { "." + String(describing: value) }
     private enum RenderingError: Error { case runtimeLabel }
     private static func label(_ value: PIOLabelHandle) throws -> String {
-        guard let name = value.symbolicName else { throw RenderingError.runtimeLabel }
-        return "RP2xxxPIOCore.PIOLabelHandle._symbol(\(quoted(name)))"
+        guard let id = value.symbolicID else { throw RenderingError.runtimeLabel }
+        return "RP2xxxPIOCore.PIOLabelHandle._symbol(\(id))"
     }
     private static func quoted(_ value: String) -> String { StringLiteralExprSyntax(content: value).trimmedDescription }
 }

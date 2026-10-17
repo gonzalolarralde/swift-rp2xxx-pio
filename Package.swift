@@ -11,7 +11,7 @@ let package = Package(
     ],
     traits: [.trait(name: "SDKInterop", description: "Enable CPicoSDK program and state-machine configuration adapters")],
     dependencies: [
-        .package(path: "../swift-constexpr"),
+        .package(url: "https://github.com/gonzalolarralde/swift-constexpr.git", branch: "main"),
         .package(url: "https://github.com/gonzalolarralde/CPicoSDK.git", branch: "main"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "603.0.2"),
     ],

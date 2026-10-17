@@ -21,21 +21,6 @@ enum PIOExpansion {
             // in a normal function call with a trailing builder closure.
             ExprSyntax(stringLiteral: "RP2xxxPIOCore.PIOAssembler.assemble(options: \(optionsExpression), \(body))")
         }
-        let labels = PIOLabelLowering()
-        let lowered = labels.lower(closure)
-        if let reason = labels.failureReason {
-            if strict {
-                ConstExprBuilderMacroSupport.diagnoseNonConstant(reason, of: node, in: context)
-                return failure("nonconstant PIO labels", strict: true)
-            }
-            return runtime(originalBody)
-        }
-        let preparedNode = MacroExpansionExprSyntax(macroName: node.macroName, arguments: [], trailingClosure: lowered)
-        let prepared = ConstExprBuilderMacroSupport.prepare(
-            of: preparedNode, in: context, registry: PIORegistry.value,
-            builderType: "RP2xxxPIOCore.PIOBuilder", runtimeFunction: "RP2xxxPIOCore.PIOAssembler.source",
-            supportsBranches: true
-        )
         let options: PIOOptions?
         let optionsFailure: String?
         switch ConstExprRunner(registry: PIORegistry.value).evaluateValue(
@@ -46,9 +31,31 @@ enum PIOExpansion {
             optionsFailure = options == nil ? "program options could not be decoded" : nil
         case .fallback(let reason): options = nil; optionsFailure = "program options: \(reason.message)"
         }
+        func partiallyCompiled() -> ExprSyntax {
+            guard let options else { return runtime(originalBody) }
+            let body = PIOPartialFolding(options: options, context: context).rewrite(closure)
+            return runtime("RP2xxxPIOCore.PIOAssembler.source \(body.trimmedDescription)")
+        }
+        let labels = PIOLabelLowering()
+        let lowered = labels.lower(closure)
+        if let reason = labels.failureReason {
+            if strict {
+                ConstExprBuilderMacroSupport.diagnoseNonConstant(reason, of: node, in: context)
+                return failure("nonconstant PIO labels", strict: true)
+            }
+            return partiallyCompiled()
+        }
+        let preparedNode = MacroExpansionExprSyntax(macroName: node.macroName, arguments: [], trailingClosure: lowered)
+        let prepared = ConstExprBuilderMacroSupport.prepare(
+            of: preparedNode, in: context, registry: PIORegistry.value,
+            builderType: "RP2xxxPIOCore.PIOBuilder", runtimeFunction: "RP2xxxPIOCore.PIOAssembler.source",
+            supportsBranches: true
+        )
         if let value = prepared.constantValue, let options {
+            var assembledSource: PIOProgramSource?
             do {
                 let source = try value.require(PIOProgramSource.self)
+                assembledSource = source
                 let program = try PIOAssembler.assemble(options: options, source)
                 let rendered = PIOProgramRendering.render(program)
                 let bindings = labels.captures.compactMap { symbol -> String? in
@@ -61,17 +68,24 @@ enum PIOExpansion {
                 let association = bindings.isEmpty ? "" : ", labels: [\(bindings)]"
                 return ExprSyntax(stringLiteral: "RP2xxxPIOCore.PIOAssembler._validated(\(rendered)\(association))")
             } catch {
-                if case .undefinedLabel(let name) = error as? PIOAssemblyError,
-                   labels.captures.contains(where: { $0.key == name }) {
-                    if !strict { return runtime(originalBody) }
+                let undefined = assembledSource.flatMap { labels.undefinedLabel(in: $0) }
+                if case .undefinedLabel = error as? PIOAssemblyError, undefined?.capture != nil {
+                    if !strict { return partiallyCompiled() }
                     ConstExprBuilderMacroSupport.diagnoseNonConstant(
                         "an external jump label has no matching Label declaration; use the same handle reference for both",
                         of: node, in: context
                     )
                     return failure("unresolved external label", strict: true)
                 }
+                var message = (error as? PIOAssemblyError)?.macroMessage ?? String(describing: error)
+                if case .undefinedLabel = error as? PIOAssemblyError, let undefined {
+                    message = "undefined label '\(undefined.name)'"
+                } else if case .duplicateSymbol = error as? PIOAssemblyError,
+                          let name = assembledSource.flatMap({ labels.duplicateName(in: $0) }) {
+                    message = "duplicate symbol '\(name)'"
+                }
                 ConstExprBuilderMacroSupport.diagnoseNonConstant(
-                    "invalid PIO program: \((error as? PIOAssemblyError)?.macroMessage ?? String(describing: error))", of: node, in: context
+                    "invalid PIO program: \(message)", of: node, in: context
                 )
                 return failure("invalid PIO program", strict: strict)
             }
@@ -82,6 +96,7 @@ enum PIOExpansion {
             )
             return failure("nonconstant PIO program", strict: true)
         }
+        if options != nil { return partiallyCompiled() }
         if labels.hasLabels { return runtime(originalBody) }
         let body = (try? prepared.constantValue?.constExprExpression()) ?? prepared.runtimeExpression
         return runtime(body.trimmedDescription)
